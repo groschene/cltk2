@@ -1,5 +1,5 @@
 TODO : 
-
+test commit
 1.
 Lemmatize to french
 Use nltk lematizer
