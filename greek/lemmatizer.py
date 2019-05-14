@@ -42,7 +42,7 @@ class PosLemmatizer:
         except IndexError:
             out = 'unk'
         return out
-    def pos_lemmatizer(self, kw, rk):
+    def pos_lemmatizer(self, kw, rk = 0):
         tag = self.CltkTnt.tag(kw)[0][1]
         regex = self.regex
         w = self.dictionnary
@@ -69,20 +69,16 @@ class PosLemmatizer:
         if to_remove_from_d is not None and to_remove_from_d > 0:
             test_wd = test_wd[:-to_remove_from_d] + pseudo_end
         return test_wd
-    def levdist_lemmatizer(self, kw, max=3):
+    def levdist_lemmatizer(self, kw, i=0):
         w = self.dictionnary
-        no_find = True
-        i = 0
-        while no_find:
-            test_wd = clean(basify(kw)).lower()
-            keep = np.where(np.asarray([distance(test_wd,s) for s in w])==i)
-            if len(keep[0]) > 0:
-                no_find = False
-                final = keep[0][0]
-            i = i + 1
-            if i > max:
-                final = 'unk'
-        return w[final]
+        test_wd = clean(basify(kw)).lower()
+        keep = np.where(np.asarray([distance(test_wd,s) for s in w])==i)
+        if len(keep[0]) > 0:
+            final = keep[0][0]
+            out = w[final]
+        else:
+            out = 'unk'
+        return out
 
 
 
@@ -109,16 +105,19 @@ class AttentionLemmatizer:
             self.tok = pickle.load(file)
         self.num_classes = self.model.input_shape[2]
         self.max_len_of_word = self.model.input_shape[1]
+        self.d  = {v: k for k, v in dict(self.tok.word_index.items()).items()}
     def attention_lemmatizer(self, target):
         sequences = self.tok.texts_to_sequences([target])
         sequences_matrix_target = sequence.pad_sequences(sequences, maxlen=self.max_len_of_word)
         pred = self.model.predict(to_categorical(sequences_matrix_target, num_classes = self.num_classes).reshape(1,self.max_len_of_word,self.num_classes))
         maxes = [np.argmax(pred[0][i]) for i in range(self.max_len_of_word)]
-        res = [d.get(i) for i in maxes]
+        res = [self.d.get(i) for i in maxes]
         res = "".join([i for i in res if i is not None])
         return res
     def sentence_to_lemma(self, st):
         to = clean(basify(st))
         all_w = [list(word) for word in to.split()]
         to_tok = [" ".join(a) for a in all_w]
-        return [self.attention_lemmatize(target) for target in to_tok]
+        return [self.attention_lemmatizer(target) for target in to_tok]
+
+
