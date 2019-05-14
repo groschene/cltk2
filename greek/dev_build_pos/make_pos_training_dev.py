@@ -69,7 +69,7 @@ def get_tags(path):
 #with open('greek_training_set_2.pos', 'w') as f:
 #f.write(treebank_training_set)
 
-root = '/home/q078011/cltk_data/greek/text/perseus_treebank_dev/v2.1/Greek/texts/'
+root = '/data/q078011/cltk_data/greek/text/perseus_treebank_dev/v2.1/Greek/texts/'
 
 trainer = ["tlg0003.tlg001.perseus-grc1.1.tb.xml",
 "tlg0011.tlg005.perseus-grc2.tb.xml",
