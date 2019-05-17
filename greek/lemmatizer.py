@@ -18,7 +18,12 @@ from greek_accentuation.characters import strip_accents
 from transliterate import translit
 from cltk.corpus.greek.beta_to_unicode import Replacer
 from model.clean import clean
-from Levenshtein import distance
+from Levenshtein import distance, editops, matching_blocks
+
+
+def lcs(s1, s2):
+    z = matching_blocks(editops(s1, s2),s1, s2)
+    return np.max(list(zip(*z))[2])
 
 
 class PosLemmatizer:
@@ -36,7 +41,7 @@ class PosLemmatizer:
         self.lemma = lemma
     def dict_lemmatizer(self, st):
         lemmatizer = self.lemma
-        st = clean(basify(st))
+        st = clean(basify(st)).lower()
         try:
             out = lemmatizer[lemmatizer[0]==st].values[0][1]
         except IndexError:
@@ -58,6 +63,8 @@ class PosLemmatizer:
         keep = np.where(np.asarray([distance(test_wd,s) for s in sh])==rk)
         if len(keep[0])>0:
             final = np.asarray(sh)[keep]
+            max_lcs = np.argmax([lcs(kw, i) for i in list(final)])
+            final = list(final)[max_lcs]
         else:
             final = 'unk'
         return final
@@ -94,7 +101,7 @@ def build_dummy_dict(i, pos_lemmatizer):
     return dummy_lemma
 
 ## TODO DummyLemmatizer ##
-from attention_decoder import *
+from dev_build_pos.attention_decoder import *
 from keras.models import Sequential
 from keras.layers import LSTM
 from keras.models import Model
@@ -131,5 +138,36 @@ class AttentionLemmatizer:
         all_w = [list(word) for word in to.split()]
         to_tok = [" ".join(a) for a in all_w]
         return [self.attention_lemmatizer(target) for target in to_tok]
+
+
+class BackOffAttentionLemmatizer:
+    def __init__(self, pos_lemmatizer, att_lemmatizer):
+        self.pos_lemmatizer  = pos_lemmatizer
+        self.att_lemmatizer  = att_lemmatizer
+    def lemmatize(self, st):
+        pos_lemmatizer  = self.pos_lemmatizer
+        att_lemmatizer  = self.att_lemmatizer
+        wdl = st.split()
+        tags = pos_lemmatizer.CltkTnt.tag(st)
+        step =[]
+        for i in range(len(tags)):
+            wd = wdl[i]
+            tag = tags[i]
+            step0 = pos_lemmatizer.dict_lemmatizer(wd)
+            if step0 == 'unk':
+                step0 = pos_lemmatizer.pos_lemmatizer(wd,tag[1],0)
+            if step0 == 'unk':
+                step0 = pos_lemmatizer.levdist_lemmatizer(att_lemmatizer.sentence_to_lemma(wd)[0],0)
+            if step0 == 'unk':
+                step0 = pos_lemmatizer.pos_lemmatizer(wd,tag[1],1)
+            if step0 == 'unk':
+                step0 = pos_lemmatizer.levdist_lemmatizer(att_lemmatizer.sentence_to_lemma(wd)[0],1)
+            if step0 == '':
+                step0 = wd
+            step.append(step0)
+        return step 
+
+
+        
 
 
