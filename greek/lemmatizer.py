@@ -4,7 +4,6 @@ import pickle
 import numpy as np
 import os
 import itertools
-
 from greek_accentuation.characters import *
 from nltk.tag import tnt
 
@@ -37,17 +36,20 @@ class PosLemmatizer:
         self.lemma = lemma
     def dict_lemmatizer(self, st):
         lemmatizer = self.lemma
-        try:    
-            out = lemmatizer[lemmatizer[0]==st][2].values[0]
+        st = clean(basify(st))
+        try:
+            out = lemmatizer[lemmatizer[0]==st].values[0][1]
         except IndexError:
             out = 'unk'
         return out
-    def pos_lemmatizer(self, kw, rk = 0):
-        tag = self.CltkTnt.tag(kw)[0][1]
+    def pos_lemmatizer(self, kw, tag, rk = 0):
         regex = self.regex
         w = self.dictionnary
         test_wd = clean(basify(kw)).lower()
-        reg = [r for r in regex if r[0]==tag][0]
+        try:
+            reg=[r for r in regex if r[0]==tag][0]
+        except IndexError:
+            reg=[0,0,None]
         to_remove_from_d = reg[1]
         pseudo_end = reg[2]
         if to_remove_from_d is not None and to_remove_from_d > 0:
@@ -63,7 +65,10 @@ class PosLemmatizer:
         regex = self.regex
         w = self.dictionnary
         test_wd = clean(basify(kw)).lower()
-        reg = [r for r in regex if r[0]==tag][0]
+        try:
+            reg = [r for r in regex if r[0]==tag][0]
+        except IndexError:
+            reg = (0,0,None)
         to_remove_from_d = reg[1]
         pseudo_end = reg[2]
         if to_remove_from_d is not None and to_remove_from_d > 0:
@@ -82,6 +87,13 @@ class PosLemmatizer:
 
 
 
+def build_dummy_dict(i, pos_lemmatizer):
+    tg = pos_lemmatizer.CltkTnt.tnt_tot.tag([i])[0][1]
+    reel_lemma = i
+    dummy_lemma = pos_lemmatizer.dummy_lemmatizer(reel_lemma,tg)
+    return dummy_lemma
+
+## TODO DummyLemmatizer ##
 from attention_decoder import *
 from keras.models import Sequential
 from keras.layers import LSTM
