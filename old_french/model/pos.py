@@ -73,25 +73,25 @@ def get_tags(path):
     xslt_content = data.read()
     xslt_root = etree.XML(xslt_content)
     root = etree.XML(xslt_content)
-    sentences = [w for w in root.iter('{http://www.tei-c.org/ns/1.0}ab')]
-    sentences_list = []
-    for sentence in sentences:
-        words_list = sentence.findall('{http://www.tei-c.org/ns/1.0}w')
-        word_tag = []
-        sentence_list = []
-        for x in words_list:
+    words_list = [w for w in root.iter('{http://www.tei-c.org/ns/1.0}w')]
+    print(len(words_list))
+    word_tag = []
+    for x in words_list:
+        try:
             lemmas = x.attrib.get('lemma')
-            try:
-                #ana = x.attrib.get('ana').split('#')[2].replace(" ","")
-                ana = x.attrib.get('type')
-            except IndexError:
-                ana = 'no_pos'
-            word = x.text
-            word_tag = '/'.join([str(word), str(ana), str(lemmas)])
-            sentence_list.append(word_tag)
-        sentence_str = ' '.join(sentence_list)
-        sentences_list.append(sentence_str)
-    treebank_training_set = '\n\n'.join(sentences_list)
-    return treebank_training_set
-    
+        except IndexError:
+            lemmas = 'no_lemma'
+        try:
+            ana = x.attrib.get('type')
+        except IndexError:
+            ana = 'no_pos'
+        word = x.text
+        wt = '/'.join([str(word), str(ana), str(lemmas)])
+        word_tag.append(wt)
+    sentence_str = ' '.join(word_tag)
+    out = sentence_str
+    return out
+
+
+
 ### Process ana
