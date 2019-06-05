@@ -49,7 +49,7 @@ def full_raw_text(old, modern):
     return old, modern
 
 
-
+### Tokenize both strings
 def tknz_str(old, modern):
     tokenizer = nltk.data.load('tokenizers/punkt/PY3/french.pickle')
     old = tokenizer.tokenize(old)
