@@ -13,29 +13,6 @@ from keras.utils import to_categorical
 
 
 
-
-####  get text ###
-import lxml.etree as ET
-source_txt = '/data/q078011/cltk_data/french/text/bfm_text/BFM2019-src/'
-entire_treebank = source_txt + 'oxfps.xml'
-data = open(entire_treebank,'rb')
-xslt_content = data.read()
-xslt_root = ET.XML(xslt_content)
-root = ET.XML(xslt_content)
-words_list = [w for w in root.iter('{http://www.tei-c.org/ns/1.0}lb')]
-##words_list = words_list[330:410]
-print(len(words_list))
-
-text = ''
-for _ in words_list:
-    try:
-        txt = _.tail.lower()
-    except AttributeError:
-        txt = ''
-    text = text +' '+ txt
-
-
-
 def top2(y_true, y_pred):
     return top_k_categorical_accuracy(y_true, y_pred, k=2)
 
@@ -70,17 +47,6 @@ with open(path_model + 'tok_txt.pkl', 'rb') as handle:
 with open(path_model + 'tok_pos.pkl', 'rb') as handle:
     tok = pickle.load(handle)
 
-
-
-
-
-
-text = "ne place Deu ne ses seinz ne ses angles après Rollant que jo vive remaigne"
-text = "pert la culor, chet as piez Carlemagne sempres est morte. Deus ait merci de l’anme" 
-text = "On y croise de nombreuses poésies et pièces demeurées anonymes mais aussi des noms d’auteurs illustres"
-text = "Que sa roé n est pas tenable Que nus ne la puet retenir Tant sache à grant estat venir"
-text = "Li fil des humes, desque à quant serez-vus de grief cuer? Purquei amez-vus vanitet, et querez menceunge?"
-text = "Tutes choses tu suzmisis suz ses piez, oeiles e tuz bués, ensurquetut les bestes del champ"
 
 
 
