@@ -7,9 +7,8 @@ import numpy as np
 import os
 from keras.preprocessing import sequence
 from keras.utils import to_categorical
-
-
-
+from model.clean import *
+import pandas as pd
 
 
 
@@ -25,19 +24,68 @@ def top_k(mylist, k):
 def k_th(mylist, k):   
     return sorted(range(len(mylist)), key = lambda i : mylist[i])[-k]
 
-def pred(r, learn):
-    X = [learn[_].reshape(1,15,38) for _ in [r-3,r-2,r-1,r,r+1,r+2,r+3]]
-    p = model.predict(X)
-    return p.argmax(axis=1)[0]
-
 def inverse_dictionnary(mydict):
     return {v: k for k, v in mydict.items()}
 
+class OldFrenchPos:
+    def __init__(self, path):
+        self.path = path
+        self.model = load_model(self.path + 'old.h5', custom_objects={'AttentionDecoder': AttentionDecoder, 'top2':top2, 'top3' : top3})
+        with open(self.path + 'tok_txt.pkl', 'rb') as handle:
+            self.tok2 = pickle.load(handle)
+        with open(self.path + 'tok_pos.pkl', 'rb') as handle:
+            self.tok = pickle.load(handle)
+    def pred(self, r, learn):
+        X = [learn[_].reshape(1,15,38) for _ in [r-3,r-2,r-1,r,r+1,r+2,r+3]]
+        p = self.model.predict(X)
+        return p.argmax(axis=1)[0]
+    def predict(self, text):
+        text=text.replace('1','')
+        text=text.replace('√ø','i')
+        text=text.replace('2','')
+        text=text.replace('√°','a')
+        text=text.replace('√§','a')
+        text=text.replace('√≠','i')
+        text=text.replace('√π','u')
+        text=text.replace('¬´','$')
+        text=text.replace('¬ª','$')
+        text=text.replace('¬∑','$')
+        text=text.replace('‚Äú','$')
+        text=text.replace('‚Äù','$')
+        text=text.replace('¬¥','$')
+        text=text.replace('√¶','ae')
+        text=text.replace('√∂','o')
+        text=text.replace('‚Äô','e ')
+        text=text.replace("'",'e ')
+        text=text.replace("\n",' ')
+        text=text.replace(";",' ')
+        text=text.replace(".",' ')
+        text=text.replace(",",'')
+        text=text.replace("-",' ')
+        text=text.replace("?",' ')
+        text=text.replace("  ",' ')
+        text=text.lower()
+        text = '. . . '+text+' . . .'
+        flat_list_learn = text.split()
+        all_w = [list(word) for word in flat_list_learn]
+        to_tok = [" ".join(a) for a in all_w]
+        self.tok2.fit_on_texts(to_tok)
+        t = self.tok2.texts_to_sequences(to_tok)
+        sequences_matrix = sequence.pad_sequences(t, maxlen=15)
+        learn = to_categorical(sequences_matrix, len(self.tok2.word_index)+1)
+        di = inverse_dictionnary(self.tok.word_index)    
+        res = [self.pred(r, learn) for r in range(3,len(learn)-3)]
+        pos = [di.get(_) for _ in res]
+        out =  list(zip(flat_list_learn[3:-3],pos))
+        return out
 
+
+
+'''
 
 path_model = '/home/gauthier/Documents/Python/cltk2/old_french/model/pickled_model/dev/'
 path = path_model
-source_txt = '/data/q078011/cltk_data/french/text/bfm_text/BFM2019-src/'
+
 
 model = load_model(path + 'old.h5', custom_objects={'AttentionDecoder': AttentionDecoder, 'top2':top2, 'top3' : top3})
 
@@ -47,48 +95,9 @@ with open(path_model + 'tok_txt.pkl', 'rb') as handle:
 with open(path_model + 'tok_pos.pkl', 'rb') as handle:
     tok = pickle.load(handle)
 
+'''
 
 
-
-def predict(text):
-    text=text.replace('1','')
-    text=text.replace('ˇ','i')
-    text=text.replace('2','')
-    text=text.replace('·','a')
-    text=text.replace('‰','a')
-    text=text.replace('Ì','i')
-    text=text.replace('˘','u')
-    text=text.replace('´','$')
-    text=text.replace('ª','$')
-    text=text.replace('∑','$')
-    text=text.replace('ì','$')
-    text=text.replace('î','$')
-    text=text.replace('¥','$')
-    text=text.replace('Ê','ae')
-    text=text.replace('ˆ','o')
-    text=text.replace('í','e ')
-    text=text.replace("'",'e ')
-    text=text.replace("\n",' ')
-    text=text.replace(";",' ')
-    text=text.replace(".",' ')
-    text=text.replace(",",'')
-    text=text.replace("-",' ')
-    text=text.replace("?",' ')
-    text=text.replace("  ",' ')
-    text=text.lower()
-    text = '. . . '+text+' . . .'
-    flat_list_learn = text.split()
-    all_w = [list(word) for word in flat_list_learn]
-    to_tok = [" ".join(a) for a in all_w]
-    tok2.fit_on_texts(to_tok)
-    t = tok2.texts_to_sequences(to_tok)
-    sequences_matrix = sequence.pad_sequences(t, maxlen=15)
-    learn = to_categorical(sequences_matrix, len(tok2.word_index)+1)
-    di = inverse_dictionnary(tok.word_index)    
-    res = [pred(r, learn) for r in range(3,len(learn)-3)]
-    pos = [di.get(_) for _ in res]
-    out =  list(zip(flat_list_learn[3:-3],pos))
-    return out
 
 
 
@@ -147,45 +156,40 @@ class NounAttentionLemmatizer:
 
 
 
-import pandas as pd
 
-path_frol = '/home/gauthier/Documents/Python/mftk/'
-frolex = pd.read_csv(path_frol+'frolex.tsv', sep='\t')
-frolex = frolex[frolex['lemma']!='<nolem>']
-frolex = frolex[frolex['lemma'].notnull()]
-frolex.loc[~frolex['msd_bfm'].isnull(),'msd_cattex_conv']=frolex['msd_bfm']
-frolex = frolex.assign(cattex_short = pd.Series(frolex['msd_cattex_conv'].apply(lambda x : x[:3].lower())).values)
-frolex = frolex.assign(cattex_low = pd.Series(frolex['msd_cattex_conv'].apply(lambda x : x.lower().replace('.',''))).values)
-
-
-
-### TODO mapping
-
-
-
-v = VerbAttentionLemmatizer(path_model)
-n = NounAttentionLemmatizer(path_model)
-w = 'parisseiz'
-pos = 'vercjg'
-
-
-def lemmatize(w, pos, v, n, frolex):
-    lemma = ''
-    size = frolex[(frolex['form']==w)]['lemma'].drop_duplicates().size
-    if size == 0:
-        if pos[:3] == 'ver':
-            lemma = v.sentence_to_lemma(w)
-        if pos[:3] != 'ver':
-            lemma = n.sentence_to_lemma(w)
-    if size == 1:
-        lemma = frolex[(frolex['form']==w)]['lemma'].drop_duplicates().values[0]
-    if size > 1:
-        size_cross = frolex[(frolex['form']==w) & (frolex['cattex_short'] == pos[:3])]['lemma'].drop_duplicates().size
-        if size_cross == 0:
+class OldFrenchAttentionLemmatizer:
+    def __init__(self, path_model, path_frol):
+        self.path_model  = path_model
+        self.path_frol  = path_frol
+        self.v = VerbAttentionLemmatizer(self.path_model)
+        self.n = NounAttentionLemmatizer(self.path_model)
+        frolex = pd.read_csv(self.path_frol+'frolex.tsv', sep='\t')
+        frolex = frolex[frolex['lemma']!='<nolem>']
+        frolex = frolex[frolex['lemma'].notnull()]
+        frolex.loc[~frolex['msd_bfm'].isnull(),'msd_cattex_conv']=frolex['msd_bfm']
+        frolex = frolex.assign(cattex_short = pd.Series(frolex['msd_cattex_conv'].apply(lambda x : x[:3].lower())).values)
+        frolex = frolex.assign(cattex_low = pd.Series(frolex['msd_cattex_conv'].apply(lambda x : x.lower().replace('.',''))).values)
+        self.frolex = frolex
+    def lemmatize(self, w, pos):
+        frolex = self.frolex
+        v = self.v
+        n = self.n
+        lemma = ''
+        size = frolex[(frolex['form']==w)]['lemma'].drop_duplicates().size
+        if size == 0:
+            if pos[:3] == 'ver':
+                lemma = v.sentence_to_lemma(w)
+            if pos[:3] != 'ver':
+                lemma = n.sentence_to_lemma(w)
+        if size == 1:
             lemma = frolex[(frolex['form']==w)]['lemma'].drop_duplicates().values[0]
-        if size_cross > 0:
-            lemma = frolex[(frolex['form']==w) & (frolex['cattex_short'] == pos[:3])]['lemma'].drop_duplicates().values[0]
-    return lemma
+        if size > 1:
+            size_cross = frolex[(frolex['form']==w) & (frolex['cattex_short'] == pos[:3])]['lemma'].drop_duplicates().size
+            if size_cross == 0:
+                lemma = frolex[(frolex['form']==w)]['lemma'].drop_duplicates().values[0]
+            if size_cross > 0:
+                lemma = frolex[(frolex['form']==w) & (frolex['cattex_short'] == pos[:3])]['lemma'].drop_duplicates().values[0]
+        return lemma
 
 
 
@@ -206,7 +210,6 @@ if no lemma -> other lemma
 if no lemma -> dico
 if no lemma -> form = AttentionLemmatizer
 if no lemma -> IdentityLemma
-'''
 
 from attention_decoder import *
 from keras.models import Sequential
@@ -284,6 +287,7 @@ res
 
 
 model.save(path_model + 'att_noun.h5')
+'''
 
 ############################
 
