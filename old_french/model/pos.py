@@ -94,4 +94,42 @@ def get_tags(path):
 
 
 
+def get_date(path):
+    entire_treebank = path
+    data = open(entire_treebank,'rb')
+    xslt_content = data.read()
+    xslt_root = etree.XML(xslt_content)
+    root = etree.XML(xslt_content)
+    words_list = [w for w in root.iter('{http://www.tei-c.org/ns/1.0}date')]
+    dates = []
+    for x in words_list:
+        try:
+            date = x.attrib.get('when')
+        except IndexError:
+            date = 'no_date'
+        dates.append(date)
+    return dates
+
+
+
+
+def get_dialect(path):
+    entire_treebank = path
+    data = open(entire_treebank,'rb')
+    xslt_content = data.read()
+    xslt_root = etree.XML(xslt_content)
+    root = etree.XML(xslt_content)
+    words_list = [w for w in root.iter('{http://www.tei-c.org/ns/1.0}region')]
+    dates = []
+    for x in words_list:
+        try:
+            reg = x.text
+        except IndexError:
+            reg = 'standard'
+        dates.append(reg)
+    return dates
+
+
+
+
 ### Process ana

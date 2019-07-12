@@ -20,7 +20,7 @@ from collections import Counter
 from greek_accentuation.characters import *
 from nltk.tag import tnt
 import nltk
-from model.pos import get_tags, Pos, Sentence, Word
+from model.pos import get_tags, Pos, Sentence, Word, get_dialect, get_date
 
 tokenizer = nltk.data.load('tokenizers/punkt/PY3/french.pickle')
 path_to_save_model = '/home/q078011/external/dev/french_dev/model/pickled_model/dev/'
@@ -43,11 +43,10 @@ di = {'NOMcom': 'NOM', 'VERcjg': 'VERcjg', 'PONfbl': 'PON', 'PROper': 'PROper', 
 
 
 
-
-
-with open('./text.pkl', 'rb') as handle:
+with open('./text_old_nopnt.pkl', 'rb') as handle:
     text = pickle.load(handle)
-    
+
+  
 tags = np.asarray(Pos(text).get_words())[:,1]
 words = np.asarray(Pos(text).get_words())[:,0]
 
@@ -56,8 +55,9 @@ splitter = [len(x.split()) for x in tk]
 indexes = list(np.cumsum(splitter))
 indexes.insert(0,0)
 
-learn_sequences = [list(words[indexes[i]:indexes[i+1]]) for i in range(len(indexes)-1)]
-target_sequences = [list(tags[indexes[i]:indexes[i+1]]) for i in range(len(indexes)-1)]
+learn_sequences = [['.','.','.']+list(words[indexes[i]:indexes[i+1]])+['.','.'] for i in range(len(indexes)-1)]
+target_sequences = [['PONfrt','PONfrt','PONfrt']+list(tags[indexes[i]:indexes[i+1]])+['PONfrt','PONfrt'] for i in range(len(indexes)-1)]
+
 
 tagged = [(i,t) for (i,t) in enumerate(target_sequences) if not np.max(np.asarray(t)=='None')]
 to_keep = list(list(zip(*tagged))[0])
@@ -68,6 +68,8 @@ target_sequences = [[di[k] for k in t] for t in target_sequences]
 
 flat_list_target = [item for sublist in target_sequences for item in sublist]
 flat_list_learn = [item for sublist in learn_sequences for item in sublist]
+
+dot = [i for i in range(len(flat_list_learn)) if flat_list_learn[i]!='.']
 
 
 to_tok = flat_list_target
@@ -88,17 +90,30 @@ t = tok.texts_to_sequences(to_tok)
 sequences_matrix = sequence.pad_sequences(t, maxlen=15)
 learn=to_categorical(sequences_matrix)
 
+dot = dot[:-1]
 
-l = len(learn)
-def data_generator3(l):
-    r = random.choice(list(range(4,l-4)))
+
+import numpy as np
+from random import sample
+l = len(dot)
+f = 20000
+indices = sample(range(l),f)
+indices_l = [[i-3,i-2,i-1,i,i+1,i+2,i+3] for i in indices]
+indices_l = [item for sublist in indices_l for item in sublist]
+
+test_data = [dot[i] for i in indices]
+train_data = np.delete(dot,indices_l)
+train_data = list(train_data)
+
+def data_generator3(l,dot):
+    r = random.choice(dot)
     X = [learn[_] for _ in [r-3,r-2,r-1,r,r+1,r+2,r+3]]
     y = tar[r]
     return X,y
 
 
 
-def do_batch():
+def do_batch(dot,size):
     x_gen1=[]
     x_gen2=[]
     x_gen3=[]
@@ -107,8 +122,8 @@ def do_batch():
     x_gen6=[]
     x_gen7=[]
     y_gen=[]
-    for _ in tqdm(range(200000)):
-        u=data_generator3(l)
+    for _ in tqdm(range(size)):
+        u=data_generator3(l, dot)
         x_gen1.append(u[0][0])
         x_gen2.append(u[0][1])
         x_gen3.append(u[0][2])
@@ -131,7 +146,7 @@ def top3(y_true, y_pred):
 
 nbcar = len(tok.word_index) + 1
 nbpos = len(tok2.word_index) + 1
-nblstm=128
+nblstm=64
 
 input_plus_3 = Input(shape=(15,nbcar))
 input_plus_2 = Input(shape=(15,nbcar))
@@ -185,7 +200,9 @@ out_plus_3_1 = Dense(200, activation = 'relu')(out_plus_3)
 
 retrieve = concatenate([out_minus_3_1, out_minus_2_1,out_minus_1,out_center_1,out_plus_1,out_plus_2_1, out_plus_3_1])
 r2 = Reshape((7, 200))(retrieve)
-lstm_f = LSTM(24,return_sequences = True, go_backwards=False, recurrent_dropout = 0.5)(r2)
+## TODO add backward
+lstm_b = LSTM(128,return_sequences = True, go_backwards=False, recurrent_dropout = 0.5)(r2)
+lstm_f = LSTM(128,return_sequences = True, go_backwards=False, recurrent_dropout = 0.5)(lstm_b)
 out1 = Flatten()(lstm_f)
 out_dense_1 = Dense(100, activation = 'relu')(out1)
 out = Dense(nbpos,activation='softmax')(out_dense_1)
@@ -193,54 +210,76 @@ out = Dense(nbpos,activation='softmax')(out_dense_1)
 model = Model(inputs=[input_minus_3, input_minus_2,input_minus,input_center,input_plus,input_plus_2, input_plus_3],outputs=out)
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc',top2, top3])
 
-
+"""
 for _ in range(1000):
     d = do_batch()
-    model.fit([d[0][0],d[0][1],d[0][2],d[0][3],d[0][4],d[0][5],d[0][6]],d[1],epochs=15,batch_size=64,validation_split=0.1,verbose =1)
+    model.fit([d[0][0],d[0][1],d[0][2],d[0][3],d[0][4],d[0][5],d[0][6]],d[1],epochs=20,batch_size=32,validation_split=0.1,verbose =1)
+    #model.save('old_old'+str(i)+'.h5')
 
 
+"""
+d = do_batch(train_data,900000)
+test = do_batch(test_data,30000)
+
+model.fit([d[0][0],d[0][1],d[0][2],d[0][3],d[0][4],d[0][5],d[0][6]],d[1],epochs=12,batch_size=64,validation_data = ([test[0][0],test[0][1],test[0][2],test[0][3],test[0][4],test[0][5],test[0][6]],test[1]),verbose =2)
+
+model.save('old.h5')
+
+path_model = '/home/gauthier/Documents/Python/cltk2/old_french/model/pickled_model/dev/'
+
+with open(path_model + 'tok_txt.pkl', 'wb') as handle:
+    pickle.dump(tok, handle)
 
 
-model.save('attv2.h5')
+with open(path_model + 'tok_pos.pkl', 'wb') as handle:
+    pickle.dump(tok2, handle)
+
 
 quit()
-from keras.models import load_model
-model = load_model('att.h5', custom_objects={'AttentionDecoder': AttentionDecoder, 'top2':top2})
-
-
-d = do_batch()
-p=model.predict([d[0][0],d[0][1],d[0][2],d[0][3],d[0][4]])
-predict=p.argmax(axis=1)
-real=d[1].argmax(axis=1)
-
-
-def rec(i):
-    recall = [_ for _ in range(len(predict)) if predict[_]==i]
-    verif = [real[_] for _ in recall]
-    l=len([_ for _ in range(len(verif)) if verif[_]==i])/len(verif)
-    return l
 
 
 
-def prec(i):
-    recall = [_ for _ in range(len(real)) if real[_]==i]
-    verif = [predict[_] for _ in recall]
-    l=len([_ for _ in range(len(verif)) if verif[_]==i])/len(verif)
-    return l
+d = do_batch(train_data,500000)
+model.fit([d[0][0],d[0][1],d[0][2],d[0][3],d[0][4],d[0][5],d[0][6]],d[1],epochs=20,batch_size=64,validation_data = ([test[0][0],test[0][1],test[0][2],test[0][3],test[0][4],test[0][5],test[0][6]],test[1]),verbose =2)
+
+d = do_batch(train_data,500000)
+model.fit([d[0][0],d[0][1],d[0][2],d[0][3],d[0][4],d[0][5],d[0][6]],d[1],epochs=20,batch_size=64,validation_data = ([test[0][0],test[0][1],test[0][2],test[0][3],test[0][4],test[0][5],test[0][6]],test[1]),verbose =2)
 
 
-wrong = [(predict[_],real[_]) for _ in range(len(p)) if predict[_]!=real[_]]
-wrong_index = [_ for _ in range(len(p)) if predict[_]!=real[_]]
+model.save('old.h5')
+path_model = '/home/gauthier/Documents/Python/cltk2/old_french/model/pickled_model/dev/'
+with open(path_model + 'tok_txt.pkl', 'wb') as handle:
+    pickle.dump(tok, handle)
+
+
+
+quit()
+test_w = [flat_list_learn[_] for _ in test_data]
+train_w = [flat_list_learn[_] for _ in train_data]
+oov = [_ for _ in test_w if _ not in train_w]
 
 def inverse_dictionnary(mydict):
     return {v: k for k, v in mydict.items()}
-    
 
-dict = inverse_dictionnary(tok.word_index)
+di = inverse_dictionnary(di)
+
+j=0
+for i in range(221):
+    oov_w = oov[i]
+    get_index_oov = [_ for _ in range(len(flat_list_learn)) if flat_list_learn[_]==oov_w]
+    r = get_index_oov[0]
+    b = do_batch(get_index_oov,1)
+    pred = np.argmax(model.predict([b[0][0],b[0][1],b[0][2],b[0][3],b[0][4],b[0][5],b[0][6]]))
+    print(" ".join([flat_list_learn[_] for _ in [r-3,r-2,r-1,r,r+1,r+2,r+3]]))
+    print(di[pred])
+    print(di[np.argmax(b[1])])
+    if pred==np.argmax(b[1]):
+        j = j+1
 
 
-def to_text(_, pos):
-    f = d[0][pos][_].argmax(axis=1)
-    text = ''.join([dict.get(_) for _ in list(f) if _>0])
-    return text
+
+
+
+
+model = load_model(path + 'att9.h5', custom_objects={'AttentionDecoder': AttentionDecoder, 'top2':top2, 'top3' : top3})
 
